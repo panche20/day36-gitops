@@ -1,0 +1,71 @@
+# ApplicationSet — generates multiple Applications from a template.
+#
+# Interview question: "When would you use ApplicationSet?"
+# Answer: When you have the same app deploying to multiple
+# environments, clusters, or tenants. Instead of copying
+# Application YAML for each one, you write one template
+# and let the generator create them all.
+#
+# Common generators:
+# - List: explicit list of environments
+# - Git: reads directories/files from git
+# - Cluster: one app per registered ArgoCD cluster
+# - Matrix: combination of other generators
+apiVersion: argoproj.io/v1alpha1
+kind: ApplicationSet
+metadata:
+  name: url-shortener
+  namespace: argocd
+spec:
+  # ── Generator ───────────────────────────────────────────────
+  # List generator: explicitly list the parameter sets.
+  # Each item generates one Application.
+  generators:
+  - list:
+      elements:
+      - environment: dev
+        namespace: url-shortener-dev
+        valuesFile: values.dev.yaml
+        replicas: "1"
+        tag: v1.0.4
+
+      - environment: staging
+        namespace: url-shortener-staging
+        valuesFile: values.dev.yaml   # reuse dev values for now
+        replicas: "2"
+        tag: v1.0.4
+
+  # ── Template ────────────────────────────────────────────────
+  # This template generates one Application per element above.
+  # {{environment}}, {{namespace}} etc are substituted
+  # from the generator element values.
+  template:
+    metadata:
+      name: "url-shortener-{{environment}}"
+      namespace: argocd
+      labels:
+        environment: "{{environment}}"
+    spec:
+      project: url-shortener
+      source:
+        repoURL: https://github.com/panche20/day36-gitops
+        targetRevision: HEAD
+        path: helm/url-shortener
+        helm:
+          valueFiles:
+          - values.yaml
+          - "{{valuesFile}}"
+          parameters:
+          - name: app.replicas
+            value: "{{replicas}}"
+          - name: app.tag
+            value: "{{tag}}"
+      destination:
+        server: https://kubernetes.default.svc
+        namespace: "{{namespace}}"
+      syncPolicy:
+        automated:
+          prune: true
+          selfHeal: true
+        syncOptions:
+        - CreateNamespace=true
