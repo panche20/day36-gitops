@@ -1,0 +1,38 @@
+# Root Application — manages all other Applications.
+# This is the "App of Apps" pattern.
+#
+# Interview question: "What problem does App of Apps solve?"
+# Answer: Without it, you'd apply each Application YAML manually.
+# With it, you apply ONE Application and it manages all others.
+# Adding a new app = add a YAML file to git.
+# Removing an app = delete the YAML file from git.
+# The platform team manages the root-app.
+# Dev teams manage their own app YAMLs under argocd/apps/.
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  name: root-app
+  namespace: argocd
+  finalizers:
+  - resources-finalizer.argocd.argoproj.io
+spec:
+  project: default
+
+  source:
+    repoURL: https://github.com/panche20/day36-gitops
+    targetRevision: HEAD
+    # Watches the argocd/apps/ directory.
+    # Any YAML file here that is an Application resource
+    # gets picked up and managed.
+    path: argocd/apps
+
+  destination:
+    server: https://kubernetes.default.svc
+    namespace: argocd   # Applications themselves go in argocd ns
+
+  syncPolicy:
+    automated:
+      prune: true       # delete Application if YAML removed from git
+      selfHeal: true
+    syncOptions:
+    - CreateNamespace=true

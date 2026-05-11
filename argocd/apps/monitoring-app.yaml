@@ -1,0 +1,30 @@
+# Second application — shows App of Apps in action
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  name: monitoring-placeholder
+  namespace: argocd
+  labels:
+    environment: dev
+    team: platform
+spec:
+  project: default
+  source:
+    repoURL: https://github.com/panche20/day36-gitops
+    targetRevision: HEAD
+    path: helm/url-shortener   # reusing same chart for demo
+    helm:
+      valueFiles:
+      - values.yaml
+      parameters:
+      - name: app.tag
+        value: "v1.0.4"
+  destination:
+    server: https://kubernetes.default.svc
+    namespace: monitoring-demo
+  syncPolicy:
+    syncOptions:
+    - CreateNamespace=true
+    automated:
+      prune: true
+      selfHeal: true
