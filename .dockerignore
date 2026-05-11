@@ -1,0 +1,16 @@
+.git
+.github
+terraform/
+argocd/
+scripts/
+*.md
+.env
+**/__pycache__
+**/*.pyc
+
+*.tfstate
+*.tfstate.backup
+.terraform/
+.env
+__pycache__/
+*.pyc

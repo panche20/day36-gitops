@@ -1,0 +1,23 @@
+app:
+  replicas: 1
+  tag: v1.0.4
+
+redis:
+  password: "devpassword123"
+  persistence:
+    size: 512Mi
+
+ingress:
+  host: url-shortener.local
+  annotations:
+    nginx.ingress.kubernetes.io/ssl-redirect: "false"
+    nginx.ingress.kubernetes.io/limit-rps: "100"
+  tls:
+    enabled: false
+
+config:
+  logLevel: debug
+  enableRateLimit: "false"
+
+autoscaling:
+  enabled: false

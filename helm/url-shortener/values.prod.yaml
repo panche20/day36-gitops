@@ -1,0 +1,40 @@
+app:
+  replicas: 3
+  tag: v1.0.4
+  resources:
+    requests:
+      memory: "256Mi"
+      cpu: "200m"
+    limits:
+      memory: "512Mi"
+      cpu: "1000m"
+
+redis:
+  password: "REPLACE_WITH_REAL_SECRET"
+  persistence:
+    size: 10Gi
+    storageClass: standard
+
+ingress:
+  host: url-shortener.yourdomain.com
+  annotations:
+    nginx.ingress.kubernetes.io/ssl-redirect: "true"
+    nginx.ingress.kubernetes.io/force-ssl-redirect: "true"
+    nginx.ingress.kubernetes.io/limit-rps: "20"
+    nginx.ingress.kubernetes.io/limit-burst-multiplier: "5"
+  tls:
+    enabled: true
+    secretName: url-shortener-tls
+
+config:
+  logLevel: warn
+  enableRateLimit: "true"
+
+networkPolicy:
+  enabled: true
+
+autoscaling:
+  enabled: true
+  minReplicas: 3
+  maxReplicas: 10
+  targetCPUUtilizationPercentage: 70
