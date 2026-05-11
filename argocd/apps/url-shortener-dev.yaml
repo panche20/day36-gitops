@@ -20,7 +20,7 @@ spec:
       - values.dev.yaml
       parameters:
       - name: app.tag
-        value: "latest"
+        value: "v1.0.4"
   destination:
     server: https://kubernetes.default.svc
     namespace: url-shortener-dev
