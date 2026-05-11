@@ -28,7 +28,7 @@ spec:
         image: {{ .Values.redis.image }}
         command: ["/bin/sh", "-c"]
         args:
-          - redis-server --appendonly yes --requirepass $REDIS_PASSWORD
+          - redis-server --appendonly yes       
         ports:
         - containerPort: {{ .Values.redis.port }}
         env:
