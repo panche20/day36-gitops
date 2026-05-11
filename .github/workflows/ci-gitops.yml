@@ -1,0 +1,94 @@
+name: CI + GitOps Integration
+
+# This pipeline demonstrates the correct CI + GitOps pattern:
+# CI builds, tests, pushes image.
+# Then updates the image tag IN GIT.
+# ArgoCD detects the git change and deploys.
+# CI never touches the cluster directly.
+on:
+  push:
+    branches: [main]
+    paths:
+      - 'app/**'
+      - 'Dockerfile'
+
+jobs:
+  build-and-update:
+    name: Build Image and Update Git
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write    # needed to push git commit
+      packages: write    # needed to push to GHCR
+
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          # Use a token that can push to the repo.
+          # GITHUB_TOKEN works for same-repo pushes.
+          token: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Generate image tag from git SHA
+        id: tag
+        run: |
+          SHORT_SHA=$(echo "${{ github.sha }}" | cut -c1-7)
+          echo "tag=sha-$SHORT_SHA" >> $GITHUB_OUTPUT
+          echo "Image tag: sha-$SHORT_SHA"
+
+      - uses: docker/login-action@v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - uses: docker/setup-buildx-action@v3
+
+      - name: Build and push image
+        uses: docker/build-push-action@v5
+        with:
+          context: .
+          target: production
+          push: true
+          tags: |
+            ghcr.io/${{ github.repository_owner }}/url-shortener:${{ steps.tag.outputs.tag }}
+            ghcr.io/${{ github.repository_owner }}/url-shortener:latest
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
+
+      # ── The GitOps handoff ────────────────────────────────────
+      # Instead of running helm upgrade or kubectl set image,
+      # we UPDATE THE FILE IN GIT.
+      # ArgoCD will pick up the change and deploy it.
+      # This keeps git as the source of truth.
+      - name: Update image tag in Helm values
+        run: |
+          TAG="${{ steps.tag.outputs.tag }}"
+
+          # Update the tag in dev values file
+          sed -i "s/^  tag:.*/  tag: $TAG/" \
+            helm/url-shortener/values.dev.yaml
+
+          # Verify the change
+          grep "tag:" helm/url-shortener/values.dev.yaml
+
+      - name: Commit and push tag update
+        run: |
+          # Configure git identity for the bot commit
+          git config user.name  "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+
+          git add helm/url-shortener/values.dev.yaml
+
+          # Only commit if there's actually a change
+          # (avoids empty commits if image tag didn't change)
+          if git diff --staged --quiet; then
+            echo "No changes to commit"
+          else
+            git commit -m "chore: update image tag to ${{ steps.tag.outputs.tag }}
+
+            Automated update from CI pipeline
+            Commit: ${{ github.sha }}
+            Author: ${{ github.actor }}"
+
+            git push origin main
+            echo "✅ Git updated — ArgoCD will deploy shortly"
+          fi
