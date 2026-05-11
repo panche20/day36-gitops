@@ -160,7 +160,76 @@ Demonstrated Concepts:
 
 ---
 
-If you'd like, I can also:
+## How to test the app (local lab)
+Follow these commands to run and verify the project locally using Minikube and ArgoCD. Run each block in a terminal.
 
-- add this README as `README.md` (capitalized) as well for visibility,
-- or commit and push to the GitHub repo if you provide credentials/access.
+1) Start Minikube
+
+```bash
+minikube start --driver=docker --memory=4096 --cpus=3 --kubernetes-version=v1.29.0
+minikube addons enable ingress
+kubectl cluster-info
+kubectl get nodes
+```
+
+2) Install ArgoCD
+
+```bash
+kubectl create namespace argocd
+kubectl apply -n argocd -f https://raw.githubusercontent.com/argoproj/argo-cd/stable/manifests/install.yaml
+kubectl wait --for=condition=Ready pods --all -n argocd --timeout=300s
+kubectl get pods -n argocd
+```
+
+3) Install ArgoCD CLI (optional but useful)
+
+```bash
+curl -sSL -o /tmp/argocd "https://github.com/argoproj/argo-cd/releases/latest/download/argocd-linux-amd64"
+chmod +x /tmp/argocd
+sudo mv /tmp/argocd /usr/local/bin/argocd
+argocd version --client
+```
+
+4) Access ArgoCD and login (local port-forward)
+
+```bash
+kubectl port-forward svc/argocd-server -n argocd 8080:443 &
+sleep 2
+ARGOCD_PASS=$(kubectl get secret argocd-initial-admin-secret -n argocd -o jsonpath='{.data.password}' | base64 -d)
+echo "ArgoCD URL: https://localhost:8080"
+echo "Username: admin"
+echo "Password: $ARGOCD_PASS"
+argocd login localhost:8080 --username admin --password "$ARGOCD_PASS" --insecure
+```
+
+5) Create application namespace and deploy the ArgoCD Application from this repo
+
+```bash
+kubectl create namespace url-shortener || true
+kubectl apply -f argocd/apps/url-shortener-dev.yaml
+argocd app sync url-shortener-dev
+argocd app wait url-shortener-dev --health --timeout 300
+kubectl get pods -n url-shortener
+```
+
+6) Port-forward the app service and test endpoints
+
+```bash
+kubectl port-forward svc/url-shortener-app 9999:80 -n url-shortener &
+sleep 3
+curl http://localhost:9999/health
+
+# Create a short URL
+curl -s -X POST http://localhost:9999/shorten -H "Content-Type: application/json" -d '{"url":"https://argoproj.github.io"}' | jq
+
+# Use the returned short_code in the stats endpoint:
+# curl http://localhost:9999/stats/<SHORT_CODE>
+```
+
+Notes:
+- If ArgoCD doesn't sync automatically wait a few minutes or run `argocd app sync url-shortener-dev`.
+- For CI-driven image updates the GitHub Actions pipeline in `.github/workflows/ci-gitops.yml` updates the Helm values in git; ArgoCD will pull and deploy the change.
+- For local image testing you can load images into Minikube with `minikube image load <image:tag>`.
+
+---
+
