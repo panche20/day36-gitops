@@ -42,7 +42,7 @@ def read_secret(name: str, fallback_env: str = None) -> str:
 # -------------------------
 # Redis Client (with timeouts)
 # -------------------------
-password = read_secret("redis_password")
+password = read_secret("redis_password", "REDIS_PASSWORD")
 
 if password:
     password = password.strip()   # 🔥 CRITICAL FIX
